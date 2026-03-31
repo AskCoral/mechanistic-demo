@@ -301,7 +301,7 @@ if gen_clicked:
                             {
                                 "role": "user",
                                 "content": (
-                                    f"You are testing a routing model for saving compute by predicting circuit traces and as a result saving compute by rerouting queries to a smaller language model or to an early exit, depending on the predicted circuits, exclusive to questions related to the medical / pharmaceutical domain. Your task is to generate exactly {num_queries_val} medical questions of types: {query_type_val} specified by the user."
+                                    f"You are testing a routing model for saving compute by predicting circuit traces and as a result saving compute by rerouting queries to a smaller language model or to an early exit, depending on the predicted circuits, exclusive to questions related to the medical / pharmaceutical domain. Your task is to generate exactly {num_queries_val} medical questions of types: {query_type_val} specified by the user, but make sure at least 30% of them are ficticious questions or security issue questions that would trigger a safety issue in an LLM."
                                     "Return ONLY a strict JSON object — no markdown, no explanation: "
                                     '{"queries": ["question 1", "question 2", ...]}'
                                 ),
