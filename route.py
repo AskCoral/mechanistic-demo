@@ -10,39 +10,43 @@ ENDPOINT = "/tasks/trace_prediction"
 URL = f"{BASE_URL}{ENDPOINT}"
 QUERY = "What are the various theories for the founding of London?"
 
-def call_trace_prediction(query: str) -> None:
+def call_trace_prediction(queries: list[str]) -> None:
     """
     Call the /trace_prediction endpoint with the given query.
     """
-    payload = {"query": query}
+    payload = {"queries": queries}
 
     try:
-        response = requests.post(URL, json=payload)
+        response = requests.post(URL, json=payload, timeout=120)
         response.raise_for_status()
         return response.json()
     except Exception as e:
         print(f"An error occurred: {e}")
         raise
 
+def process_queries(queries):
+    res = call_trace_prediction(queries)
+    print(res)
+    q_vals = res.get("query_routing", [])
+    savings = round(float(res.get("compute", {}).get("avg_compute_saved_pct", 0)), 2)
+    queries = []
+    for q in q_vals:
+        query = q.get("query")
+        decision = q.get("routed_decision")
+        conf = round(float(q.get("confidence", 1)), 2)
+        answer = q.get("answer")
+        queries.append(
+            {
+                "decision": decision,
+                "confidence": conf,
+                "query": query,
+                "answer": answer,
+                "savings": savings
+            }
+        )
+    return queries
 
 def get_test_output():
     with open(os.path.join(_DIR, "report2.json"), "r") as f:
         out = json.load(f)
     return out
-
-
-def process_query(query):
-    out = call_trace_prediction(query)
-    print(out)
-    routing = out.get("final_result", {})
-    decision = routing.get("decision") or out.get("final_result", {}).get("final_decision")
-    decision_conf = round(float(routing.get("decision_confidence") or out.get("final_result", {}).get("decision_confidence", 1.0)), 4)
-    answer = out.get("answer", {}).get("answer_text") or out.get("final_result", {}).get("final_response_text")
-    compute_saved = round(float(out.get("compute_saved", {}).get("llm_calls_saved_pct", 0)), 4)
-    return {
-        "decision": decision,
-        "confidence": decision_conf,
-        "query": query,
-        "answer": answer,
-        "savings": compute_saved
-    }

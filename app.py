@@ -10,7 +10,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from route import process_query
+from route import process_queries
 
 st.set_page_config(
     page_title="LKM Compute Savings — Medical PoC",
@@ -128,7 +128,7 @@ DECISION_BADGE = {
     "CONTINUE_TO_LLM": ("🟡", "#fef9c3", "#854d0e"),
 }
 
-def render_table_with_selection(results):
+def render_table_with_selection(results, key="result_table"):
     import pandas as pd
 
     rows = [
@@ -149,7 +149,7 @@ def render_table_with_selection(results):
         hide_index=True,
         on_select="rerun",
         selection_mode="single-row",
-        key="result_table",
+        key=key,
     )
 
     selected_rows = event.selection.get("rows", []) if event and event.selection else []
@@ -215,9 +215,7 @@ m3_ph = mc3.empty()
 with left_col:
     st.title("Medical Proof of Concept for LKM Compute Savings")
     st.markdown(
-        "_Enter the number of questions and a description of the type of medical-related "
-        "questions to generate in real-time and then watch the LKM evaluate and route to "
-        "different buckets and observe the compute savings it generates._"
+        "_Type in how many questions you want, describe what kind of medical questions to make, and then watch the system save compute by using the LKM to predict and reroute what it can to a smaller, fine-tuned language model or early exit._"
     )
     st.divider()
 
@@ -278,7 +276,7 @@ if _results:
     )
     with table_ph.container():
         with st.expander(_label, expanded=True):
-            render_table_with_selection(_results)
+            render_table_with_selection(_results, key="result_table_static")
 
 
 # ─── Handle Generate button ───────────────────────────────────────────────────
@@ -330,12 +328,17 @@ if proc_clicked:
 if st.session_state.is_processing and not st.session_state.processing_done:
     queries = st.session_state.queries
     n = len(queries)
+    batch_size = 2
+    start = len(st.session_state.results)
 
-    for i in range(len(st.session_state.results), n):
+    for batch_start in range(start, n, batch_size):
+        batch = queries[batch_start:batch_start + batch_size]
+        batch_end = batch_start + len(batch)
+
         with status_ph.container():
-            with st.spinner(f"Processing query {i + 1} of {n}…"):
-                result = process_query(queries[i])
-                st.session_state.results.append(result)
+            with st.spinner(f"Processing queries {batch_start + 1}–{batch_end} of {n}…"):
+                batch_results = process_queries(batch)
+                st.session_state.results.extend(batch_results)
 
                 counts = route_counts(st.session_state.results)
                 sv, np_, cert = compute_metrics(st.session_state.results)
@@ -353,7 +356,7 @@ if st.session_state.is_processing and not st.session_state.processing_done:
 
                 with table_ph.container():
                     with st.expander(f"📊 {np_} of {n} queries processed", expanded=True):
-                        render_table_with_selection(st.session_state.results)
+                        render_table_with_selection(st.session_state.results, key="result_table_processing")
 
                 time.sleep(0.35)
 
