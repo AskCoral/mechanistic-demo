@@ -356,7 +356,7 @@ if st.session_state.is_processing and not st.session_state.processing_done:
 
                 with table_ph.container():
                     with st.expander(f"📊 {np_} of {n} queries processed", expanded=True):
-                        render_table_with_selection(st.session_state.results, key="result_table_processing")
+                        render_table_with_selection(st.session_state.results, key=f"result_table_{batch_start}")
 
                 time.sleep(0.35)
 
