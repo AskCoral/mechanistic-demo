@@ -128,61 +128,32 @@ DECISION_BADGE = {
     "CONTINUE_TO_LLM": ("🟡", "#fef9c3", "#854d0e"),
 }
 
-def render_table_with_selection(results, key="result_table"):
-    import pandas as pd
-
-    rows = [
-        {
-            "#": i + 1,
-            "Query": r["query"],
-            "Decision": r["decision"],
-            "Savings": f"{r['savings']:.1%}",
-            "Confidence": f"{r['confidence']:.1%}",
-        }
-        for i, r in enumerate(results)
-    ]
-    df = pd.DataFrame(rows)
-
-    event = st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        on_select="rerun",
-        selection_mode="single-row",
-        key=key,
-    )
-
-    selected_rows = event.selection.get("rows", []) if event and event.selection else []
-    if selected_rows:
-        idx = selected_rows[0]
-        r = results[idx]
+def render_results_cards(results, key="result_table"):
+    for i, r in enumerate(results):
         decision = r.get("decision", "")
         emoji, bg, fg = DECISION_BADGE.get(decision, ("⚪", "#f3f4f6", "#374151"))
+        answer = r.get("answer") or "_No answer returned._"
+        savings_pct = f"{r['savings']:.1%}"
+        conf_pct = f"{r['confidence']:.1%}"
 
-        st.markdown(
-            f"""
-<div style="margin-top:16px;border-radius:12px;border:1px solid #e5e7eb;
-            padding:20px 24px;background:#fafafa">
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-    <span style="font-weight:700;font-size:15px;color:#111">Query #{idx + 1}</span>
-    <span style="background:{bg};color:{fg};border-radius:20px;padding:2px 12px;
-                 font-size:12px;font-weight:700">{emoji} {decision}</span>
-    <span style="margin-left:auto;font-size:12px;color:#6b7280">
-      Savings&nbsp;<b>{r['savings']:.1%}</b>&nbsp;&nbsp;·&nbsp;&nbsp;Confidence&nbsp;<b>{r['confidence']:.1%}</b>
-    </span>
-  </div>
-  <p style="font-size:14px;color:#374151;margin-bottom:14px;font-style:italic">
-    {r['query']}
-  </p>
-  <hr style="border:none;border-top:1px solid #e5e7eb;margin-bottom:14px"/>
-  <div style="font-size:14px;color:#111;line-height:1.7">
-    <b>Answer</b>
-  </div>
+        with st.expander(f"#{i + 1}  {r['query']}"):
+            st.markdown(answer)
+            st.markdown(
+                f"""
+<hr style="border:none;border-top:1px solid #555;margin:10px 0"/>
+<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <span style="background:{bg};color:{fg};border-radius:20px;padding:3px 14px;
+               font-size:12px;font-weight:700">{emoji} {decision}</span>
+  <span style="font-size:13px;color:#ccc">
+    Compute Savings&nbsp;<b style="color:#fff">{savings_pct}</b>
+  </span>
+  <span style="font-size:13px;color:#ccc">
+    Confidence&nbsp;<b style="color:#fff">{conf_pct}</b>
+  </span>
 </div>
 """,
-            unsafe_allow_html=True,
-        )
-        st.markdown(r["answer"] or "_No answer returned._")
+                unsafe_allow_html=True,
+            )
 
 
 def get_openai_key():
@@ -213,42 +184,47 @@ m3_ph = mc3.empty()
 
 # Left column
 with left_col:
+    gen_clicked = False
+    proc_clicked = False
+
     st.title("Medical Proof of Concept for LKM Compute Savings")
     st.markdown(
         "_Type in how many questions you want, describe what kind of medical questions to make, and then watch the system save compute by using the LKM to predict and reroute what it can to a smaller, fine-tuned language model or early exit._"
     )
     st.divider()
 
-    locked = st.session_state.generation_done
+    show_form = not st.session_state.is_processing and not st.session_state.processing_done
 
-    num_queries_val = st.number_input(
-        "Number of queries to generate",
-        min_value=1,
-        max_value=500,
-        step=1,
-        value=st.session_state.num_queries_saved,
-        disabled=locked,
-    )
-    query_type_val = st.text_input(
-        "Types of questions to generate",
-        placeholder="50% complex reasoning questions and 50% simple fact-based questions",
-        value=st.session_state.query_type_saved,
-        disabled=locked,
-    )
+    if show_form:
+        locked = st.session_state.generation_done
 
-    gen_clicked = False
-    proc_clicked = False
-
-    if not st.session_state.generation_done:
-        gen_clicked = st.button(
-            "Generate Questions",
-            type="primary",
-            disabled=not query_type_val.strip(),
+        num_queries_val = st.number_input(
+            "Number of queries to generate",
+            min_value=1,
+            max_value=500,
+            step=1,
+            value=st.session_state.num_queries_saved,
+            disabled=locked,
         )
-    else:
-        st.success(f"✅ {len(st.session_state.queries)} questions generated")
-        if not st.session_state.processing_done and not st.session_state.is_processing:
+        query_type_val = st.text_input(
+            "Types of questions to generate",
+            placeholder="50% complex reasoning questions and 50% simple fact-based questions",
+            value=st.session_state.query_type_saved,
+            disabled=locked,
+        )
+
+        if not st.session_state.generation_done:
+            gen_clicked = st.button(
+                "Generate Questions",
+                type="primary",
+                disabled=not query_type_val.strip(),
+            )
+        else:
+            st.success(f"✅ {len(st.session_state.queries)} questions generated")
             proc_clicked = st.button("Process Questions", type="primary")
+    else:
+        num_queries_val = st.session_state.num_queries_saved
+        query_type_val = st.session_state.query_type_saved
 
     status_ph = st.empty()
     table_ph = st.empty()
@@ -269,14 +245,9 @@ m3_ph.metric("Decision Certainty", f"{_cert:.1f}%")
 
 # Render existing table if results are stored (e.g. after page rerun)
 if _results:
-    _label = (
-        "✅ Query processing complete"
-        if st.session_state.processing_done
-        else f"📊 {len(_results)} of {_n_total} queries processed"
-    )
     with table_ph.container():
-        with st.expander(_label, expanded=True):
-            render_table_with_selection(_results, key="result_table_static")
+        st.subheader("Processed Queries")
+        render_results_cards(_results, key="result_table_static")
 
 
 # ─── Handle Generate button ───────────────────────────────────────────────────
@@ -355,8 +326,8 @@ if st.session_state.is_processing and not st.session_state.processing_done:
                 m3_ph.metric("Decision Certainty", f"{cert:.1f}%")
 
                 with table_ph.container():
-                    with st.expander(f"📊 {np_} of {n} queries processed", expanded=True):
-                        render_table_with_selection(st.session_state.results, key=f"result_table_{batch_start}")
+                    st.subheader("Processed Queries")
+                    render_results_cards(st.session_state.results, key=f"result_table_{batch_start}")
 
                 time.sleep(0.35)
 
