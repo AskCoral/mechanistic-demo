@@ -17,7 +17,7 @@ def call_trace_prediction(queries: list[str]) -> None:
     payload = {"queries": queries}
 
     try:
-        response = requests.post(URL, json=payload, timeout=120)
+        response = requests.post(URL, json=payload, timeout=600)
         response.raise_for_status()
         return response.json()
     except Exception as e:
