@@ -16,7 +16,14 @@ st.set_page_config(
     page_title="LKM Compute Savings — Medical PoC",
     layout="wide",
     page_icon="⚡",
+    initial_sidebar_state="collapsed",
 )
+
+# Hide the sidebar and multi-page nav completely
+st.markdown("""<style>
+    [data-testid="stSidebar"] { display: none; }
+    [data-testid="stSidebarCollapsedControl"] { display: none; }
+</style>""", unsafe_allow_html=True)
 
 # ─── Session state defaults ───────────────────────────────────────────────────
 _DEFAULTS = {
@@ -336,3 +343,9 @@ if st.session_state.is_processing and not st.session_state.processing_done:
     with status_ph.container():
         st.success("✅ Query processing complete")
     st.rerun()
+
+# ─── Shield Demo link ────────────────────────────────────────────────────────
+st.markdown("")
+_, btn_col = st.columns([9, 1])
+with btn_col:
+    st.page_link("pages/Shield_Demo.py", label="🛡️ Shield Demo", icon=None)
